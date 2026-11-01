@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doubao Seedream 图像生成测试</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+        .header h1 { font-size: 24px; margin-bottom: 8px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        .content { padding: 24px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-tip { font-size: 12px; color: #888; margin-top: 4px; }
+        .form-row { display: flex; gap: 20px; }
+        .form-row .form-group { flex: 1; }
+        
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .upload-area:hover { border-color: #ff6b35; background: #fff5f0; }
+        .preview-images {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .preview-item {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        .preview-item .del-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 22px;
+        }
+        .preview-item .label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 11px;
+            padding: 4px;
+            text-align: center;
+            border-radius: 0 0 6px 6px;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: #f0f0f0; color: #333; margin-left: 10px; }
+        
+        .result-section {
+            margin-top: 24px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .result-section h3 { margin-bottom: 12px; color: #333; }
+        .result-box {
+            background: #1a1a2e;
+            color: #00ff00;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.running { background: #cce5ff; color: #004085; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        
+        .result-images {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .result-images img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff6b35;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Doubao Seedream 图像生成</h1>
+            <p>火山引擎豆包大模型 - 图生图 / 文生图</p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                💡 支持图生图和文生图模式。上传参考图片后，AI 会根据提示词对图片进行编辑或换装。
+            </div>
+            
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="apiKey" value="" placeholder="输入火山引擎 API Key" />
+                <p class="form-tip">从火山引擎控制台获取</p>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>模型</label>
+                    <select id="model">
+                        <option value="doubao-seedream-4-5-251128">doubao-seedream-4-5-251128 (推荐)</option>
+                        <option value="doubao-seedream-3-0-t2i-250116">doubao-seedream-3-0 (文生图)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>图片尺寸</label>
+                    <select id="size">
+                        <option value="2K">2K (2048px)</option>
+                        <option value="1080P">1080P</option>
+                        <option value="720P">720P</option>
+                        <option value="1:1">1:1 正方形</option>
+                        <option value="3:4">3:4 竖版</option>
+                        <option value="4:3">4:3 横版</option>
+                        <option value="9:16">9:16 手机竖屏</option>
+                        <option value="16:9">16:9 横屏</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>上传参考图片（可选，图生图模式需要）</label>
+                <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                    <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImageUpload(this)" />
+                    <p>📷 点击上传图片（可多选）</p>
+                    <p class="form-tip">图1: 主体/人物 | 图2: 参考服装/风格</p>
+                </div>
+                <div class="preview-images" id="previewImages"></div>
+            </div>
+            
+            <div class="form-group">
+                <label>提示词 Prompt</label>
+                <textarea id="prompt" placeholder="例如：将图1的服装换为图2的服装&#10;或：一个穿着红色连衣裙的女孩站在海边"></textarea>
+                <p class="form-tip">描述你想要的效果，如换装、风格转换等</p>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="watermark" checked /> 添加水印
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-primary" id="submitBtn" onclick="generateImage()">
+                    🚀 开始生成
+                </button>
+                <button class="btn btn-secondary" onclick="clearAll()">清空</button>
+            </div>
+            
+            <div class="result-section" id="resultSection" style="display:none">
+                <h3>📋 生成结果 <span class="status" id="statusTag">处理中</span></h3>
+                <div class="result-box" id="resultBox"></div>
+                <div class="result-images" id="resultImages"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
+        const TOS_SIGNATURE_URL = 'http://localhost:5001/api/tos/signature';
+        let uploadedImages = []; // { file, url, base64 }
+        
+        function handleImageUpload(input) {
+            const files = input.files;
+            const container = document.getElementById('previewImages');
+            
+            Array.from(files).forEach((file, idx) => {
+                if (uploadedImages.length >= 5) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const base64 = e.target.result;
+                    const imgData = { file, base64, id: Date.now() + idx, url: null };
+                    uploadedImages.push(imgData);
+                    
+                    // 预览
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'preview-item';
+                    wrapper.innerHTML = `
+                        <img src="${base64}" />
+                        <button class="del-btn" onclick="removeImage(${imgData.id})">×</button>
+                        <span class="label">图${uploadedImages.length}</span>
+                    `;
+                    container.appendChild(wrapper);
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            input.value = '';
+        }
+        
+        function removeImage(id) {
+            uploadedImages = uploadedImages.filter(img => img.id !== id);
+            refreshPreviews();
+        }
+        
+        function refreshPreviews() {
+            const container = document.getElementById('previewImages');
+            container.innerHTML = '';
+            uploadedImages.forEach((img, idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'preview-item';
+                wrapper.innerHTML = `
+                    <img src="${img.base64}" />
+                    <button class="del-btn" onclick="removeImage(${img.id})">×</button>
+                    <span class="label">图${idx + 1}</span>
+                `;
+                container.appendChild(wrapper);
+            });
+        }
+        
+        function showResult(data, status = 'success') {
+            const section = document.getElementById('resultSection');
+            const box = document.getElementById('resultBox');
+            const tag = document.getElementById('statusTag');
+            const imagesDiv = document.getElementById('resultImages');
+            
+            section.style.display = 'block';
+            box.textContent = JSON.stringify(data, null, 2);
+            
+            tag.className = 'status ' + status;
+            tag.textContent = { running: '处理中...', success: '成功', error: '失败' }[status];
+            
+            // 显示生成的图片
+            imagesDiv.innerHTML = '';
+            if (data.data && Array.isArray(data.data)) {
+                data.data.forEach(item => {
+                    if (item.url) {
+                        const img = document.createElement('img');
+                        img.src = item.url;
+                        img.onclick = () => window.open(item.url, '_blank');
+                        img.style.cursor = 'pointer';
+                        img.title = '点击查看大图';
+                        imagesDiv.appendChild(img);
+                    } else if (item.b64_json) {
+                        const img = document.createElement('img');
+                        img.src = 'data:image/png;base64,' + item.b64_json;
+                        imagesDiv.appendChild(img);
+                    }
+                });
+            }
+        }
+        
+        /**
+         * 上传图片到 TOS 获取公网 URL
+         */
+        async function uploadToTOS(file) {
+            try {
+                // 1. 获取上传签名
+                const signRes = await fetch(`${TOS_SIGNATURE_URL}?filename=${encodeURIComponent(file.name)}&folder=ai-images`);
+                const signData = await signRes.json();
+                
+                if (signData.code !== 200) {
+                    throw new Error(signData.message || '获取签名失败');
+                }
+                
+                const sig = signData.data;
+                console.log('TOS 签名:', sig);
+                
+                // 2. 构建上传 FormData
+                const formData = new FormData();
+                formData.append('key', sig.key);
+                formData.append('policy', sig.policy);
+                formData.append('x-tos-algorithm', sig['x-tos-algorithm']);
+                formData.append('x-tos-credential', sig['x-tos-credential']);
+                formData.append('x-tos-date', sig['x-tos-date']);
+                formData.append('x-tos-signature', sig['x-tos-signature']);
+                if (sig['x-tos-security-token']) {
+                    formData.append('x-tos-security-token', sig['x-tos-security-token']);
+                }
+                formData.append('file', file);
+                
+                // 3. 上传到 TOS
+                const uploadUrl = `https://${sig.host}`;
+                const uploadRes = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (uploadRes.ok || uploadRes.status === 204) {
+                    console.log('TOS 上传成功:', sig.url);
+                    return sig.url;
+                } else {
+                    const errText = await uploadRes.text();
+                    throw new Error(`上传失败: ${uploadRes.status} - ${errText}`);
+                }
+            } catch (error) {
+                console.error('TOS 上传错误:', error);
+                throw error;
+            }
+        }
+        
+        async function uploadImageToGetUrl(imgData) {
+            // 如果有文件对象，优先使用 TOS 上传
+            if (imgData.file) {
+                try {
+                    return await uploadToTOS(imgData.file);
+                } catch (e) {
+                    console.warn('TOS 上传失败，使用 base64:', e);
+                    return imgData.base64;
+                }
+            }
+            return imgData.base64;
+        }
+        
+        async function generateImage() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('model').value;
+            const size = document.getElementById('size').value;
+            const prompt = document.getElementById('prompt').value.trim();
+            const watermark = document.getElementById('watermark').checked;
+            
+            if (!apiKey) {
+                alert('请输入 API Key');
+                return;
+            }
+            if (!prompt) {
+                alert('请输入提示词');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>生成中...';
+            
+            try {
+                showResult({ message: '正在生成图片...' }, 'running');
+                
+                // 构建请求体
+                const requestBody = {
+                    model: model,
+                    prompt: prompt,
+                    size: size,
+                    response_format: 'url',
+                    stream: false,
+                    watermark: watermark
+                };
+                
+                // 如果有上传图片，先上传到 TOS 获取公网 URL
+                if (uploadedImages.length > 0) {
+                    showResult({ message: '正在上传图片到云存储...' }, 'running');
+                    
+                    const imageUrls = [];
+                    for (let i = 0; i < uploadedImages.length; i++) {
+                        const img = uploadedImages[i];
+                        showResult({ message: `正在上传图片 ${i + 1}/${uploadedImages.length}...` }, 'running');
+                        
+                        try {
+                            const url = await uploadImageToGetUrl(img);
+                            imageUrls.push(url);
+                            console.log(`图片 ${i + 1} URL:`, url);
+                        } catch (e) {
+                            console.error(`图片 ${i + 1} 上传失败:`, e);
+                            // 如果 TOS 上传失败，使用 base64
+                            imageUrls.push(img.base64);
+                        }
+                    }
+                    
+                    requestBody.image = imageUrls;
+                    requestBody.sequential_image_generation = 'disabled';
+                    
+                    showResult({ message: '图片上传完成，正在生成...' }, 'running');
+                }
+                
+                console.log('请求体:', requestBody);
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                console.log('响应:', data);
+                
+                if (response.ok && data.data) {
+                    showResult(data, 'success');
+                } else {
+                    showResult(data, 'error');
+                }
+                
+            } catch (error) {
+                console.error('错误:', error);
+                showResult({ error: error.message }, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 开始生成';
+            }
+        }
+        
+        function clearAll() {
+            document.getElementById('prompt').value = '';
+            document.getElementById('previewImages').innerHTML = '';
+            document.getElementById('imageInput').value = '';
+            uploadedImages = [];
+            document.getElementById('resultSection').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-cors==4.0.0
+flask-sqlalchemy==3.1.1
+flask-migrate==4.0.5
+pymysql==1.1.0
+pyjwt==2.8.0
+werkzeug==3.0.1
+cryptography==41.0.7
+requests==2.31.0
+tos==2.7.1

@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doubao Seedream 图像生成测试</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+        .content {
+            padding: 24px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .form-tip {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        .upload-area.has-image {
+            border-style: solid;
+            border-color: #4caf50;
+        }
+        .preview-images {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .preview-images img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            margin-left: 10px;
+        }
+        .result-section {
+            margin-top: 24px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .result-section h3 {
+            margin-bottom: 12px;
+            color: #333;
+        }
+        .result-box {
+            background: #1a1a2e;
+            color: #00ff00;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.pending { background: #fff3cd; color: #856404; }
+        .status.running { background: #cce5ff; color: #004085; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .result-image {
+            margin-top: 16px;
+            text-align: center;
+        }
+        .result-image img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            color: #667eea;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Doubao Seedream 图像生成</h1>
+            <p>火山引擎豆包大模型 - 图像生成API</p>
+        </div>
+        
+        <div class="content">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('imagine')">图像生成</div>
+                <div class="tab" onclick="switchTab('settings')">设置</div>
+            </div>
+            
+            <!-- Imagine 生成 -->
+            <div id="tab-imagine" class="tab-content active">
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="apiKey" placeholder="输入你的 API Key" />
+                </div>
+                
+                <div class="form-group">
+                    <label>上传图片（可选，最多3张）<span id="uploadCount" style="color:#888;font-weight:normal"></span></label>
+                    <div class="upload-area" id="dropZone" onclick="document.getElementById('imageInput').click()">
+                        <input type="file" id="imageInput" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display:none" onchange="handleImageUpload(this)" />
+                        <p>📷 点击选择图片（可多选）</p>
+                        <p class="form-tip">支持 JPG、PNG、GIF、WebP 格式，最多3张</p>
+                    </div>
+                    <div class="preview-images" id="previewImages"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addMoreImages()" style="margin-top:10px;display:none" id="addMoreBtn">+ 添加更多图片</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Prompt 提示词</label>
+                    <textarea id="prompt" placeholder="输入提示词，例如: A beautiful sunset over the ocean --ar 16:9 --v 6"></textarea>
+                    <p class="form-tip">图片 URL 会自动添加到提示词前面</p>
+                </div>
+                
+                <div class="form-group">
+                    <button class="btn btn-primary" id="submitBtn" onclick="submitImagine()">
+                        🚀 提交生成
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearAll()">清空</button>
+                </div>
+            </div>
+            
+            <!-- 上传图片 -->
+            <div id="tab-upload" class="tab-content">
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="uploadApiKey" placeholder="输入你的 API Key" />
+                </div>
+                
+                <div class="form-group">
+                    <label>选择图片上传到 Discord</label>
+                    <div class="upload-area" onclick="document.getElementById('uploadImageInput').click()">
+                        <input type="file" id="uploadImageInput" accept="image/*" multiple style="display:none" onchange="handleUploadPreview(this)" />
+                        <p>📷 点击选择图片</p>
+                    </div>
+                    <div class="preview-images" id="uploadPreviewImages"></div>
+                </div>
+                
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="uploadImages()">
+                        📤 上传图片
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 查询任务 -->
+            <div id="tab-query" class="tab-content">
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="queryApiKey" placeholder="输入你的 API Key" />
+                </div>
+                
+                <div class="form-group">
+                    <label>任务 ID</label>
+                    <input type="text" id="taskId" placeholder="输入任务 ID" />
+                </div>
+                
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="queryTask()">
+                        🔍 查询任务
+                    </button>
+                    <button class="btn btn-secondary" onclick="startPolling()">
+                        🔄 自动轮询
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 结果区域 -->
+            <div class="result-section" id="resultSection" style="display:none">
+                <h3>📋 响应结果 <span class="status" id="statusTag">等待中</span></h3>
+                <div class="result-box" id="resultBox"></div>
+                <div class="result-image" id="resultImage"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://ai.comfly.chat';
+        let uploadedFiles = [];  // 存储原始文件对象
+        let pollingTimer = null;
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tabName).classList.add('active');
+        }
+        
+        function handleImageUpload(input, append = false) {
+            const files = input.files;
+            const previewContainer = document.getElementById('previewImages');
+            
+            if (!append) {
+                previewContainer.innerHTML = '';
+                uploadedFiles = [];
+            }
+            
+            const filesToAdd = Array.from(files).slice(0, 3 - uploadedFiles.length);
+            
+            filesToAdd.forEach(file => {
+                // 检查文件类型
+                if (!file.type.startsWith('image/')) {
+                    alert('请选择图片文件');
+                    return;
+                }
+                
+                uploadedFiles.push(file);
+                
+                // 创建预览容器
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.display = 'inline-block';
+                
+                // 预览图
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    wrapper.appendChild(img);
+                    
+                    // 删除按钮
+                    const delBtn = document.createElement('span');
+                    delBtn.innerHTML = '×';
+                    delBtn.style.cssText = 'position:absolute;top:-8px;right:-8px;width:20px;height:20px;background:red;color:white;border-radius:50%;text-align:center;line-height:18px;cursor:pointer;font-size:14px;';
+                    delBtn.onclick = (evt) => {
+                        evt.stopPropagation();
+                        const idx = uploadedFiles.indexOf(file);
+                        if (idx > -1) uploadedFiles.splice(idx, 1);
+                        wrapper.remove();
+                        updateUploadUI();
+                    };
+                    wrapper.appendChild(delBtn);
+                };
+                reader.readAsDataURL(file);
+                
+                previewContainer.appendChild(wrapper);
+            });
+            
+            updateUploadUI();
+            input.value = ''; // 清空 input 以便重复选择
+        }
+        
+        function updateUploadUI() {
+            const countSpan = document.getElementById('uploadCount');
+            const addMoreBtn = document.getElementById('addMoreBtn');
+            
+            if (uploadedFiles.length > 0) {
+                countSpan.textContent = ` (已选 ${uploadedFiles.length}/3)`;
+                if (uploadedFiles.length < 3) {
+                    addMoreBtn.style.display = 'inline-block';
+                } else {
+                    addMoreBtn.style.display = 'none';
+                }
+            } else {
+                countSpan.textContent = '';
+                addMoreBtn.style.display = 'none';
+            }
+        }
+        
+        function addMoreImages() {
+            const input = document.getElementById('imageInput');
+            input.onchange = function() { handleImageUpload(this, true); };
+            input.click();
+        }
+        
+        function handleUploadPreview(input) {
+            const files = input.files;
+            const previewContainer = document.getElementById('uploadPreviewImages');
+            previewContainer.innerHTML = '';
+            
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    previewContainer.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        function showResult(data, status = 'success') {
+            const resultSection = document.getElementById('resultSection');
+            const resultBox = document.getElementById('resultBox');
+            const statusTag = document.getElementById('statusTag');
+            const resultImage = document.getElementById('resultImage');
+            
+            resultSection.style.display = 'block';
+            resultBox.textContent = JSON.stringify(data, null, 2);
+            
+            statusTag.className = 'status ' + status;
+            statusTag.textContent = {
+                'pending': '等待中',
+                'running': '处理中',
+                'success': '成功',
+                'error': '失败'
+            }[status] || status;
+            
+            // 显示图片
+            resultImage.innerHTML = '';
+            if (data.imageUrl) {
+                resultImage.innerHTML = `<img src="${data.imageUrl}" alt="生成结果" />`;
+            } else if (data.result && typeof data.result === 'string' && data.result.startsWith('http')) {
+                resultImage.innerHTML = `<img src="${data.result}" alt="生成结果" />`;
+            }
+        }
+        
+        async function submitImagine() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const prompt = document.getElementById('prompt').value.trim();
+            
+            if (!apiKey) {
+                alert('请输入 API Key');
+                return;
+            }
+            if (!prompt && uploadedFiles.length === 0) {
+                alert('请输入提示词或上传图片');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>处理中...';
+            
+            try {
+                let imageUrls = [];
+                
+                // 如果有图片，使用 /v1/files 接口上传
+                if (uploadedFiles.length > 0) {
+                    showResult({ message: '正在上传图片...' }, 'running');
+                    
+                    for (let i = 0; i < uploadedFiles.length; i++) {
+                        const file = uploadedFiles[i];
+                        showResult({ message: `正在上传图片 ${i + 1}/${uploadedFiles.length}...` }, 'running');
+                        
+                        const formData = new FormData();
+                        formData.append('file', file, file.name);
+                        
+                        const uploadRes = await fetch(BASE_URL + '/v1/files', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + apiKey
+                            },
+                            body: formData
+                        });
+                        
+                        const uploadData = await uploadRes.json();
+                        console.log('上传结果:', uploadData);
+                        
+                        // 解析返回的 URL
+                        if (uploadData.url) {
+                            imageUrls.push(uploadData.url);
+                        } else if (uploadData.data && uploadData.data.url) {
+                            imageUrls.push(uploadData.data.url);
+                        } else if (uploadData.result) {
+                            imageUrls.push(uploadData.result);
+                        } else {
+                            console.log('上传响应:', uploadData);
+                            throw new Error('图片上传失败: ' + JSON.stringify(uploadData));
+                        }
+                    }
+                    
+                    showResult({ message: '图片上传成功', urls: imageUrls }, 'success');
+                }
+                
+                // 构建完整提示词
+                let fullPrompt = '';
+                if (imageUrls.length > 0) {
+                    fullPrompt = imageUrls.join(' ') + ' ';
+                }
+                fullPrompt += prompt;
+                
+                showResult({ message: '正在提交 Imagine 任务...', prompt: fullPrompt }, 'running');
+                
+                // 提交 Imagine 任务
+                const imagineRes = await fetch(BASE_URL + '/mj/submit/imagine', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: fullPrompt
+                    })
+                });
+                
+                const imagineData = await imagineRes.json();
+                console.log('Imagine 结果:', imagineData);
+                
+                if (imagineData.code === 1) {
+                    const taskId = imagineData.result;
+                    showResult({
+                        message: '任务已提交，开始自动轮询...',
+                        taskId: taskId,
+                        description: imagineData.description
+                    }, 'running');
+                    
+                    // 自动填充任务 ID
+                    document.getElementById('taskId').value = taskId;
+                    document.getElementById('queryApiKey').value = apiKey;
+                    
+                    // 自动开始轮询（3秒后开始）
+                    submitBtn.innerHTML = '<span class="loading"></span>等待结果...';
+                    await autoPolling(apiKey, taskId);
+                    
+                } else {
+                    showResult(imagineData, 'error');
+                }
+                
+            } catch (error) {
+                console.error('错误:', error);
+                showResult({ error: error.message }, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 提交生成';
+            }
+        }
+        
+        // 自动轮询直到完成
+        async function autoPolling(apiKey, taskId) {
+            const maxAttempts = 120; // 最多轮询 120 次（10分钟）
+            const interval = 5000; // 每 5 秒查询一次
+            
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(resolve => setTimeout(resolve, interval));
+                
+                try {
+                    const res = await fetch(BASE_URL + '/mj/task/' + taskId + '/fetch', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer ' + apiKey
+                        }
+                    });
+                    
+                    const data = await res.json();
+                    console.log(`轮询 ${i + 1}:`, data);
+                    
+                    if (data) {
+                        const status = data.status === 'SUCCESS' ? 'success' : 
+                                       data.status === 'FAILURE' ? 'error' : 'running';
+                        
+                        let displayData = { 
+                            ...data,
+                            pollCount: i + 1,
+                            progressInfo: data.progress || '处理中...'
+                        };
+                        
+                        showResult(displayData, status);
+                        
+                        // 完成或失败时停止轮询
+                        if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
+                            console.log('任务完成，停止轮询');
+                            return data;
+                        }
+                    }
+                } catch (error) {
+                    console.error('轮询错误:', error);
+                }
+            }
+            
+            showResult({ message: '轮询超时，请手动查询' }, 'error');
+            return null;
+        }
+        
+        async function uploadImages() {
+            const apiKey = document.getElementById('uploadApiKey').value.trim();
+            const input = document.getElementById('uploadImageInput');
+            
+            if (!apiKey) {
+                alert('请输入 API Key');
+                return;
+            }
+            if (!input.files.length) {
+                alert('请选择图片');
+                return;
+            }
+            
+            try {
+                const files = Array.from(input.files);
+                const uploadedUrls = [];
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    showResult({ message: `正在上传图片 ${i + 1}/${files.length}...` }, 'running');
+                    
+                    const formData = new FormData();
+                    formData.append('file', file, file.name);
+                    
+                    const res = await fetch(BASE_URL + '/v1/files', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + apiKey
+                        },
+                        body: formData
+                    });
+                    
+                    const data = await res.json();
+                    console.log('上传结果:', data);
+                    
+                    if (data.url) {
+                        uploadedUrls.push(data.url);
+                    } else if (data.data && data.data.url) {
+                        uploadedUrls.push(data.data.url);
+                    } else if (data.result) {
+                        uploadedUrls.push(data.result);
+                    }
+                }
+                
+                showResult({ 
+                    message: '上传完成',
+                    urls: uploadedUrls,
+                    count: uploadedUrls.length
+                }, 'success');
+                
+            } catch (error) {
+                showResult({ error: error.message }, 'error');
+            }
+        }
+        
+        async function queryTask() {
+            const apiKey = document.getElementById('queryApiKey').value.trim();
+            const taskId = document.getElementById('taskId').value.trim();
+            
+            if (!apiKey || !taskId) {
+                alert('请输入 API Key 和任务 ID');
+                return;
+            }
+            
+            try {
+                // 使用 /mj/task/{id}/fetch 接口查询
+                const res = await fetch(BASE_URL + '/mj/task/' + taskId + '/fetch', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + apiKey
+                    }
+                });
+                
+                const data = await res.json();
+                console.log('查询结果:', data);
+                
+                if (data) {
+                    const status = data.status === 'SUCCESS' ? 'success' : 
+                                   data.status === 'FAILURE' ? 'error' : 
+                                   data.status === 'IN_PROGRESS' ? 'running' : 'pending';
+                    
+                    // 显示进度
+                    let displayData = { ...data };
+                    if (data.progress) {
+                        displayData.progressInfo = `进度: ${data.progress}`;
+                    }
+                    
+                    showResult(displayData, status);
+                    return data;
+                } else {
+                    showResult({ message: '任务不存在' }, 'pending');
+                }
+                
+            } catch (error) {
+                showResult({ error: error.message }, 'error');
+            }
+            return null;
+        }
+        
+        async function startPolling() {
+            if (pollingTimer) {
+                clearInterval(pollingTimer);
+                pollingTimer = null;
+                showResult({ message: '已停止轮询' }, 'pending');
+                return;
+            }
+            
+            showResult({ message: '开始轮询任务状态...' }, 'running');
+            
+            const poll = async () => {
+                const task = await queryTask();
+                if (task) {
+                    if (task.status === 'SUCCESS' || task.status === 'FAILURE') {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                    }
+                }
+            };
+            
+            await poll();
+            pollingTimer = setInterval(poll, 5000);
+        }
+        
+        function clearAll() {
+            document.getElementById('prompt').value = '';
+            document.getElementById('previewImages').innerHTML = '';
+            document.getElementById('imageInput').value = '';
+            uploadedFiles = [];
+            document.getElementById('resultSection').style.display = 'none';
+        }
+        
+        // 同步 API Key
+        ['apiKey', 'uploadApiKey', 'queryApiKey'].forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                const value = this.value;
+                ['apiKey', 'uploadApiKey', 'queryApiKey'].forEach(otherId => {
+                    if (otherId !== id) {
+                        document.getElementById(otherId).value = value;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

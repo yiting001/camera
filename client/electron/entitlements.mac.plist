@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 允许访问摄像头 -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    
+    <!-- 允许访问麦克风（可选，如果需要录音） -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    
+    <!-- 允许网络访问 -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- 允许读写用户选择的文件 -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <!-- 允许下载目录访问 -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+</dict>
+</plist>
