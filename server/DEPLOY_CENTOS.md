@@ -86,30 +86,18 @@ pip install -r requirements-py36.txt
 
 ### 2.3 配置应用
 
-编辑 `config.py`，修改数据库连接信息：
+凭据不再写在代码里，改为读取同目录的 `.env` 文件（已被 `.gitignore` 排除）：
 
-```python
-# config.py
-import os
-
-class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
-    
-    # MySQL 配置
-    MYSQL_HOST = 'localhost'
-    MYSQL_PORT = 3306
-    MYSQL_USER = 'photo_user'
-    MYSQL_PASSWORD = 'your_password'
-    MYSQL_DATABASE = 'photo_app'
-    
-    SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}?charset=utf8mb4'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # 上传配置
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+```bash
+cd /opt/photo-app
+cp .env.example .env
+chmod 600 .env
+vi .env   # 填入 MySQL、TOS、豆包 API 的真实值
 ```
+
+`.env` 支持的配置项见 `.env.example`；也可以不用文件，直接 `export` 同名环境变量。
+
+如果确实想改代码里的默认值，编辑 `config.py`（其中的配置项都通过 `os.environ.get` 读取）。
 
 ### 2.4 初始化数据库
 
