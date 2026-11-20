@@ -853,6 +853,13 @@ async function generateComposite() {
     return
   }
 
+  // 设备断网时直接提示
+  if (!navigator.onLine) {
+    window.dispatchEvent(new Event('app-network-device-offline'))
+    ElMessage.error('设备未联网，请联网后重试')
+    return
+  }
+
   const isSceneMode = selectedScene.value !== 'normal'
   const doneLabel = isSceneMode ? `「${generateBtnText.value.replace(/^生成/, '')}」` : 'AI 合成'
 
@@ -921,11 +928,17 @@ async function generateComposite() {
     }
   } catch (error) {
     console.error('AI合成失败:', error)
-    // 检查是否是配额不足错误
-    if (error.message && error.message.includes('次数已用完')) {
-      ElMessage.error(error.message)
+    const msg = String((error && error.message) || '')
+    if (!navigator.onLine) {
+      window.dispatchEvent(new Event('app-network-device-offline'))
+      ElMessage.error('设备未联网，请联网后重试')
+    } else if (/Failed to fetch|NetworkError|Load failed|ERR_NETWORK|网络连接/i.test(msg)) {
+      window.dispatchEvent(new Event('app-network-error'))
+      ElMessage.error('网络连接异常，请检查网络后重试')
+    } else if (msg.includes('次数已用完')) {
+      ElMessage.error(msg)
     } else {
-      ElMessage.error(`AI合成失败: ${error.message}`)
+      ElMessage.error(`AI合成失败: ${msg || '请重试'}`)
     }
     compositeStatus.value = ''
   } finally {
@@ -1065,7 +1078,16 @@ async function saveToAlbum() {
     ElMessage.success('保存成功，请扫码下载')
   } catch (error) {
     console.error('保存失败:', error)
-    ElMessage.error(`保存失败：${error.message || '请重试'}`)
+    const msg = String((error && error.message) || '')
+    if (!navigator.onLine) {
+      window.dispatchEvent(new Event('app-network-device-offline'))
+      ElMessage.error('设备未联网，请联网后重试')
+    } else if (/Failed to fetch|NetworkError|Load failed|ERR_NETWORK/i.test(msg)) {
+      window.dispatchEvent(new Event('app-network-error'))
+      ElMessage.error('网络连接异常，请检查网络后重试')
+    } else {
+      ElMessage.error(`保存失败：${msg || '请重试'}`)
+    }
   } finally {
     saving.value = false
   }
@@ -1130,17 +1152,24 @@ async function fetchPrompts() {
   }
 }
 
+// 重新拉取服务端数据（网络恢复后调用）
+async function refetchServerData() {
+  await Promise.all([fetchBackgrounds(), fetchFonts(), fetchLogo(), fetchReference(), fetchTextOverlay(), fetchPrompts()])
+}
+
 onMounted(async () => {
   await getCameraList()
   if (selectedCamera.value) {
     startCamera(selectedCamera.value)
   }
   // 获取背景列表、字体列表、Logo、参考图、文字描述设置和提示词模式
-  await Promise.all([fetchBackgrounds(), fetchFonts(), fetchLogo(), fetchReference(), fetchTextOverlay(), fetchPrompts()])
+  window.addEventListener('app-network-online', refetchServerData)
+  await refetchServerData()
 })
 
 onUnmounted(() => {
   stopCamera()
+  window.removeEventListener('app-network-online', refetchServerData)
   if (countdownTimer) {
     clearInterval(countdownTimer)
     countdownTimer = null
