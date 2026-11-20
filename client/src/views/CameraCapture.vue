@@ -15,9 +15,9 @@
         <el-button @click="refreshCameras" :icon="Refresh" circle title="刷新相机列表" />
       </div>
       <div class="toolbar-right">
-        <!-- 合成模式选择（多个提示词时显示） -->
+        <!-- 合成模式选择（普通拍照下、多个提示词时显示） -->
         <el-select 
-          v-if="promptModes.length > 1" 
+          v-if="selectedScene === 'normal' && promptModes.length > 1" 
           v-model="selectedPromptIndex" 
           placeholder="合成模式"
           class="mode-select"
@@ -37,9 +37,9 @@
           <el-icon><MagicStick /></el-icon>
           滤镜
         </el-button>
-        <el-button type="primary" @click="showBackgroundDialog = true">
+        <el-button :type="selectedBackground ? 'primary' : 'warning'" @click="showBackgroundDialog = true">
           <el-icon><PictureFilled /></el-icon>
-          选择背景
+          {{ selectedBackground ? '更换背景' : '选择背景' }}
         </el-button>
       </div>
     </div>
@@ -137,30 +137,70 @@
           </div>
         </div>
         
+        <!-- 玩法选择：先选玩法再拍照 -->
+        <div class="scene-bar">
+          <div class="scene-options">
+            <span class="scene-label">选择玩法</span>
+            <el-button
+              v-for="scene in sceneModes"
+              :key="scene.id"
+              :type="selectedScene === scene.id ? 'primary' : 'default'"
+              size="large"
+              class="scene-btn"
+              :disabled="generating"
+              @click="selectScene(scene.id)"
+            >
+              <el-icon><component :is="scene.icon" /></el-icon>
+              {{ scene.name }}
+            </el-button>
+          </div>
+          <p class="scene-hint">{{ sceneHint }}</p>
+        </div>
+
         <!-- 控制按钮 -->
         <div class="capture-controls">
-          <!-- 未拍照：显示拍照按钮 -->
-          <el-button 
-            v-if="!capturedImage && !compositeResult" 
-            type="danger" 
-            size="large" 
-            circle 
-            class="capture-btn"
-            @click="startCountdown"
-            :disabled="!cameraReady || countdown > 0"
-          >
-            <el-icon :size="32"><Camera /></el-icon>
-          </el-button>
+          <!-- 未拍照：背景选择 + 拍照按钮 -->
+          <template v-if="!capturedImage && !compositeResult">
+            <el-button
+              size="large"
+              :type="selectedBackground ? 'success' : 'warning'"
+              class="bg-quick-btn"
+              @click="showBackgroundDialog = true"
+            >
+              <el-icon><PictureFilled /></el-icon>
+              {{ selectedBackground ? '更换背景' : '选择背景' }}
+            </el-button>
+            <el-button 
+              type="danger" 
+              size="large" 
+              circle 
+              class="capture-btn"
+              @click="startCountdown"
+              :disabled="!cameraReady || countdown > 0"
+            >
+              <el-icon :size="32"><Camera /></el-icon>
+            </el-button>
+          </template>
           
-          <!-- 已拍照未合成：显示重拍和合成按钮 -->
+          <!-- 已拍照未合成：重拍 + 换背景 + 生成 -->
           <template v-else-if="capturedImage && !compositeResult">
             <el-button type="info" size="large" @click="retakePhoto" :disabled="generating">
               <el-icon><RefreshLeft /></el-icon>
               重新拍照
             </el-button>
+            <el-button
+              size="large"
+              :type="selectedBackground ? 'success' : 'warning'"
+              class="bg-quick-btn"
+              @click="showBackgroundDialog = true"
+              :disabled="generating"
+            >
+              <el-icon><PictureFilled /></el-icon>
+              {{ selectedBackground ? '更换背景' : '选择背景' }}
+            </el-button>
             <el-button type="primary" size="large" @click="generateComposite" :loading="generating">
               <el-icon><MagicStick /></el-icon>
-              {{ generating ? compositeStatus || '合成中...' : 'AI合成' }}
+              {{ generating ? compositeStatus || '合成中...' : generateBtnText }}
             </el-button>
           </template>
           
@@ -249,7 +289,8 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   Camera, Refresh, PictureFilled, Loading, RefreshLeft, 
-  MagicStick, Download, FolderAdd, Sunny, Close, EditPen, Setting, InfoFilled 
+  MagicStick, Download, FolderAdd, Sunny, Close, EditPen, Setting, InfoFilled,
+  Avatar, Trophy
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { generateAIComposite, savePhoto, getBackgrounds, getFonts, getLogo, getReference, getTextOverlay, getPrompts, uploadToTos, sharePhoto } from '@/api/photo'
@@ -274,6 +315,81 @@ const referenceImage = ref(null)
 // 提示词模式列表
 const promptModes = ref([])
 const selectedPromptIndex = ref(0)
+
+// 玩法模式内置提示词（后台「提示词模式」里如有同名模式则优先使用后台配置）
+const SCENE_DEFAULT_PROMPTS = {
+  baby: '根据图1中人物的面部特征，生成他们未来宝宝的写真照片。宝宝约6-12个月大，五官自然融合两人的特征，皮肤细腻，表情可爱，光线柔和，高清摄影质感，真实自然。',
+  golden: '将图1中的夫妻二人转换为金婚（结婚50周年）纪念照：两人变为70-80岁左右的老年夫妇，保留各自的面部特征与神态，头发花白，面带幸福微笑，身穿端庄的中式金婚礼服，姿态亲密自然，画面温馨、庄重，高清摄影质感。'
+}
+
+// 可选玩法（先选玩法再拍照）
+const sceneModes = [
+  { id: 'normal', name: '普通拍照', icon: Camera },
+  { id: 'baby', name: '生成宝宝', icon: Avatar, aliases: ['生成宝宝', '有宝宝的照片', '宝宝', '宝宝照', '宝宝照片'] },
+  { id: 'golden', name: '金婚照', icon: Trophy, aliases: ['金婚照', '金婚'] }
+]
+
+const selectedScene = ref('normal')
+
+const currentScene = computed(() =>
+  sceneModes.find(scene => scene.id === selectedScene.value) || sceneModes[0]
+)
+
+// 生成按钮文案随玩法变化
+const generateBtnText = computed(() => {
+  if (selectedScene.value === 'baby') return '生成宝宝'
+  if (selectedScene.value === 'golden') return '生成金婚照'
+  return 'AI合成'
+})
+
+// 玩法说明
+const sceneHint = computed(() => {
+  if (selectedScene.value === 'baby') {
+    return '拍下两人的合照，点击「生成宝宝」，AI 会根据两人的相貌生成宝宝写真'
+  }
+  if (selectedScene.value === 'golden') {
+    return '拍下两人的合照，点击「生成金婚照」，AI 会生成金婚纪念照'
+  }
+  return '拍照后点击「AI合成」，将人像与所选背景融合'
+})
+
+// 切换玩法
+function selectScene(sceneId) {
+  selectedScene.value = sceneId
+}
+
+// 获取当前玩法的提示词（后台同名/同义模式 > 内置默认）
+function resolveScenePrompt(scene) {
+  if (!scene || scene.id === 'normal') return null
+
+  const aliases = scene.aliases || [scene.name]
+  const adminMode = promptModes.value.find(
+    mode => aliases.includes((mode.name || '').trim()) && (mode.content || '').trim()
+  )
+  const hasBackground = !!selectedBackground.value
+
+  let prompt = ''
+  if (adminMode) {
+    const adminContent = adminMode.content.trim()
+    // 后台提示词依赖「图2」时，只有选了背景才使用，否则回退到内置提示词
+    const mentionsBackground = /图\s*2|背景/.test(adminContent)
+    if (!mentionsBackground || hasBackground) {
+      prompt = adminContent
+    }
+  }
+
+  if (!prompt) {
+    prompt = (SCENE_DEFAULT_PROMPTS[scene.id] || '').trim()
+  }
+
+  // 选了背景、但提示词里还没提到背景时，补一句融合要求
+  if (prompt && hasBackground && !/图\s*2|背景/.test(prompt)) {
+    prompt += ' 将人物自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
+  }
+
+  return prompt
+}
+
 
 // 下载二维码
 const showQrCodeDialog = ref(false)
@@ -659,7 +775,12 @@ async function generateComposite() {
     ElMessage.warning('请先拍照')
     return
   }
-  if (!selectedBackground.value) {
+
+  const isSceneMode = selectedScene.value !== 'normal'
+  const doneLabel = isSceneMode ? `「${currentScene.value.name}」` : 'AI 合成'
+
+  // 普通拍照需要背景；宝宝/金婚照模式背景可选
+  if (!isSceneMode && !selectedBackground.value) {
     ElMessage.warning('请先选择背景')
     return
   }
@@ -672,14 +793,19 @@ async function generateComposite() {
     const photoUrl = await uploadToTos(capturedImage.value, `portrait_${Date.now()}.jpg`)
     console.log('人像照片上传成功:', photoUrl)
     
-    compositeStatus.value = '正在调用 AI 合成...'
+    compositeStatus.value = isSceneMode
+      ? `正在生成${currentScene.value.id === 'baby' ? '宝宝照片' : '金婚纪念照'}...`
+      : '正在调用 AI 合成...'
     
     // 2. 构建合成参数
     // photo: 人像照片（图1）
-    // background: 背景图片（图2）
+    // background: 背景图片（图2，可选）
     const params = {
-      photo: photoUrl,
-      background: selectedBackground.value.url
+      photo: photoUrl
+    }
+
+    if (selectedBackground.value) {
+      params.background = selectedBackground.value.url
     }
     
     // 添加参考图参数（如果有）
@@ -687,8 +813,13 @@ async function generateComposite() {
       params.reference = referenceImage.value
     }
     
-    // 添加选中的提示词（如果有模式可选）
-    if (promptModes.value.length > 0 && promptModes.value[selectedPromptIndex.value]) {
+    // 添加提示词：宝宝/金婚照使用玩法提示词，普通拍照使用后台选中的提示词模式
+    if (isSceneMode) {
+      const scenePrompt = resolveScenePrompt(currentScene.value)
+      if (scenePrompt) {
+        params.prompt = scenePrompt
+      }
+    } else if (promptModes.value.length > 0 && promptModes.value[selectedPromptIndex.value]) {
       params.prompt = promptModes.value[selectedPromptIndex.value].content
     }
     
@@ -700,9 +831,9 @@ async function generateComposite() {
       compositeStatus.value = ''
       // 显示剩余次数
       if (result.data.ai_remaining !== null && result.data.ai_remaining !== undefined) {
-        ElMessage.success(`AI 合成完成！剩余次数: ${result.data.ai_remaining}`)
+        ElMessage.success(`${doneLabel}完成！剩余次数: ${result.data.ai_remaining}`)
       } else {
-        ElMessage.success('AI 合成完成！')
+        ElMessage.success(`${doneLabel}完成！`)
       }
     } else if (result.code === 403) {
       // 配额不足
@@ -980,7 +1111,7 @@ onUnmounted(() => {
 }
 
 .mode-select {
-  width: 120px;
+  width: 160px;
 }
 
 .mode-select :deep(.el-input__wrapper) {
@@ -1292,6 +1423,63 @@ onUnmounted(() => {
   display: flex;
   gap: 16px;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* 玩法选择栏 */
+.scene-bar {
+  width: 100%;
+  max-width: 800px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 14px 16px 10px;
+}
+
+.scene-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.scene-label {
+  font-size: 14px;
+  color: #8a93a8;
+  margin-right: 4px;
+}
+
+.scene-btn {
+  min-width: 150px;
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.scene-btn:not(.el-button--primary) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.scene-btn:not(.el-button--primary):hover {
+  background: rgba(64, 158, 255, 0.18);
+  color: #fff;
+  border-color: #409eff;
+}
+
+.scene-hint {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: #8a93a8;
+}
+
+.bg-quick-btn {
+  min-width: 140px;
 }
 
 .capture-btn {

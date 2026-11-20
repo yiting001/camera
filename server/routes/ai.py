@@ -185,13 +185,13 @@ def upload_to_temp_hosting(file_path):
     return None
 
 
-def call_doubao_composite(photo_url, background_url, reference_url=None, prompt=None, size=None):
+def call_doubao_composite(photo_url, background_url=None, reference_url=None, prompt=None, size=None):
     """
     调用 Doubao Seedream API 进行图片合成
     
     参数:
     - photo_url: 用户照片的公网 URL (图1-人物)
-    - background_url: 背景/服装图片的公网 URL (图2-参考)
+    - background_url: 背景/服装图片的公网 URL (图2-参考，可选)
     - reference_url: 额外参考图的公网 URL (可选)
     - prompt: 提示词 (可选，默认为换装提示)
     - size: 输出图片尺寸 (可选，默认为 16:9)
@@ -210,8 +210,10 @@ def call_doubao_composite(photo_url, background_url, reference_url=None, prompt=
         'Content-Type': 'application/json'
     }
     
-    # 构建图片列表
-    image_urls = [photo_url, background_url]
+    # 构建图片列表（背景和参考图均为可选）
+    image_urls = [photo_url]
+    if background_url:
+        image_urls.append(background_url)
     if reference_url:
         image_urls.append(reference_url)
     
@@ -240,9 +242,10 @@ def call_doubao_composite(photo_url, background_url, reference_url=None, prompt=
     print(f"模型: {model}")
     print(f"尺寸: {size} -> {size_value}")
     print(f"图片1 (人物): {photo_url}")
-    print(f"图片2 (背景): {background_url}")
+    if background_url:
+        print(f"图片2 (背景): {background_url}")
     if reference_url:
-        print(f"图片3 (参考): {reference_url}")
+        print(f"图片{len(image_urls)} (参考): {reference_url}")
     print(f"提示词: {prompt}")
     
     # 发送请求
@@ -280,7 +283,7 @@ def generate_composite():
     
     请求参数:
     - photo: 用户照片的公网URL (图1-人物)
-    - background: 背景图片的公网URL (图2-背景)
+    - background: 背景图片的公网URL (图2-背景，可选)
     - reference: 参考图公网URL (可选)
     - prompt: 提示词 (可选)
     - size: 输出图片尺寸 (可选)
@@ -318,9 +321,7 @@ def generate_composite():
         if not photo_url:
             return jsonify({'code': 400, 'message': '缺少用户照片URL'}), 400
         
-        if not background_url:
-            return jsonify({'code': 400, 'message': '缺少背景图片URL'}), 400
-        
+        # background 可选：普通拍照需要背景，宝宝/金婚照等玩法可只传人像照片
         # 获取 Doubao API 配置
         api_key, model, default_size = get_doubao_config()
         if not api_key:

@@ -39,7 +39,10 @@ async function fetchLogo() {
   try {
     const res = await api.getLogo()
     if (res.code === 200 && res.data?.url) {
-      logoUrl.value = `${getServerUrl()}${res.data.url}`
+      // 完整 URL 直接使用，相对路径才拼接服务器地址
+      logoUrl.value = res.data.url.startsWith('http')
+        ? res.data.url
+        : `${getServerUrl()}${res.data.url}`
     }
   } catch (error) {
     console.error('获取 Logo 失败:', error)
