@@ -371,16 +371,26 @@ function findAdminMode(scene) {
   )
 }
 
-// 宝宝合照提示词（夫妻 + 1个或2个宝宝的全家福）
+// 宝宝合照提示词（图1实际人物 + 1个或2个宝宝的全家福）
 function buildBabyPrompt() {
   const countText = childCount.value === 2 ? '两个' : '一个'
-  let prompt = `以图1中的夫妻二人为基础，保持两人的面部特征、发型与身份不变。根据两人的相貌推断他们未来孩子的长相，生成${countText}宝宝（约6-12个月大，宝宝性别自然即可，五官自然融合父母特征，皮肤细腻，表情可爱）。让${countText}宝宝与夫妻二人一起拍一张温馨的全家福合影，宝宝由夫妻二人抱着或围绕在身边，全家人表情自然幸福，构图完整，真实自然，高清摄影质感。`
+  let prompt = `以图1中的人物为基础，保持每一位人物的面部特征、发型与身份不变。严格保持图1中的人物数量不变：图1中有几个人就只保留几个人，不要新增、补出或虚构任何人物；如果图1只有一个人，就只生成这位家长与宝宝的合影，不要补出另一位家长。根据人物的相貌推断他们未来孩子的长相，生成${countText}宝宝（约6-12个月大，宝宝性别自然即可，五官自然融合父母特征，皮肤细腻，表情可爱）。让${countText}宝宝与图1中的人物一起拍一张温馨的全家福合影，宝宝由家长抱着或围绕在身边，全家人表情自然幸福，构图完整，真实自然，高清摄影质感。`
   if (selectedBackground.value) {
     prompt += ' 将全家人自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
   } else {
     prompt += ' 背景使用柔和的浅色室内影棚背景，光线自然。'
   }
   return prompt
+}
+
+// 人物数量保护：不允许凭空补人
+const NO_EXTRA_PERSON_GUARD = '严格保持图1中的人物数量不变：图1中有几个人就只生成几个人，不要新增、补出或虚构任何人物，只有一个人时不要补出伴侣。'
+
+function ensureNoExtraPerson(prompt, extraTip = '') {
+  if (/人物数量|不要新增|不要补出|不要虚构|单人金婚|另一位家长/.test(prompt)) {
+    return prompt
+  }
+  return `${prompt} ${NO_EXTRA_PERSON_GUARD}${extraTip}`
 }
 
 // 给提示词补充背景融合要求（避免重复）
@@ -399,33 +409,41 @@ function resolveScenePrompt(scene) {
   if (adminMode) {
     const adminContent = adminMode.content.trim()
     const mentionsBackground = /图\s*2|背景/.test(adminContent)
+    const hasBackground = !!selectedBackground.value
 
     if (scene.id === 'baby') {
       // 后台支持 {count} / {宝宝数量} 占位符，替换为用户选择的宝宝数量
       if (/\{count\}|\{宝宝数量\}/.test(adminContent)) {
-        return adminContent.replace(/\{count\}|\{宝宝数量\}/g, String(childCount.value))
+        const prompt = adminContent.replace(/\{count\}|\{宝宝数量\}/g, String(childCount.value))
+        return ensureNoExtraPerson(
+          withBackgroundHint(prompt),
+          ' 如果图1只有一个人，不要补出另一位家长。'
+        )
       }
       // 旧版后台提示词固定写死"一个男孩/一个宝宝"，无法满足1/2个宝宝选择，改用内置提示词
       if (/一位男孩|一个男孩|一个宝宝/.test(adminContent)) {
         return buildBabyPrompt()
       }
-      if (!mentionsBackground || selectedBackground.value) {
-        return withBackgroundHint(`${adminContent} 本次生成${childCount.value}个宝宝，并与夫妻二人一起合影。`)
+      if (!mentionsBackground || hasBackground) {
+        return ensureNoExtraPerson(
+          withBackgroundHint(`${adminContent} 本次生成${childCount.value}个宝宝，并与图1中的人物一起合影。`),
+          ' 如果图1只有一个人，不要补出另一位家长。'
+        )
       }
       return buildBabyPrompt()
     }
 
     // 金婚纪念照
-    if (!mentionsBackground || selectedBackground.value) {
-      return withBackgroundHint(adminContent)
+    if (!mentionsBackground || hasBackground) {
+      return ensureNoExtraPerson(withBackgroundHint(adminContent))
     }
   }
 
   // 内置金婚照提示词
   if (scene.id === 'golden') {
-    let prompt = '将图1中的夫妻二人转换为结婚50周年金婚纪念照：保持两人的面部特征与身份不变，年龄自然变为70-80岁，头发花白、精神矍铄，身穿端庄的中式金婚礼服，两人亲密并肩、面带幸福微笑。'
+    let prompt = '将图1中的人物转换为结婚50周年金婚纪念照：保持每一位人物的面部特征与身份不变，年龄自然变为70-80岁，头发花白、精神矍铄，身穿端庄的中式金婚礼服，面带幸福微笑，姿态自然。严格保持图1中的人物数量不变：图1中有几个人就只生成几个人，不要新增、补出或虚构任何人物；只有一个人时，就只生成这一个人的单人金婚纪念照，不要补出伴侣。'
     if (selectedBackground.value) {
-      prompt += ' 将二人自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
+      prompt += ' 将图1中的人物自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
     } else {
       prompt += ' 背景使用温馨的暖色调中式厅堂或影棚背景，高清摄影质感。'
     }
