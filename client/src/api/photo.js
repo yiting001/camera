@@ -100,8 +100,8 @@ export async function generateAIComposite(data) {
   
   const result = await response.json()
   
-  // 对于 403 配额不足的情况，返回结果让调用方处理
-  if (response.status === 403) {
+  // 对于 403 配额不足、422 内容审核未通过的情况，返回结果让调用方处理
+  if (response.status === 403 || response.status === 422) {
     return result
   }
   

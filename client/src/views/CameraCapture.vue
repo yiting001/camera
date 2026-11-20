@@ -295,7 +295,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Camera, Refresh, PictureFilled, Loading, RefreshLeft, 
   MagicStick, Download, FolderAdd, Sunny, Close, EditPen, Setting, InfoFilled,
@@ -925,6 +925,16 @@ async function generateComposite() {
       } else {
         ElMessage.success(`${doneLabel}完成！`)
       }
+    } else if (result.code === 422) {
+      // 豆包内容审核未通过
+      const requestId = result.data && result.data.requestId
+      if (requestId) console.warn('AI 内容审核未通过，Request id:', requestId)
+      ElMessageBox.alert(
+        `照片或背景未通过 AI 内容审核。请重新拍摄一张正面、清晰、无敏感内容的照片，或更换背景后重试。${requestId ? `\n\n审核编号：${requestId}` : ''}`,
+        '图片未通过审核',
+        { confirmButtonText: '我知道了', type: 'warning' }
+      ).catch(() => {})
+      compositeStatus.value = ''
     } else if (result.code === 403) {
       // 配额不足
       ElMessage.error(result.message || '您的 AI 生成次数已用完，请联系管理员充值')
@@ -943,6 +953,12 @@ async function generateComposite() {
       ElMessage.error('网络连接异常，请检查网络后重试')
     } else if (msg.includes('次数已用完')) {
       ElMessage.error(msg)
+    } else if (/SensitiveContentDetected|内容审核/i.test(msg)) {
+      ElMessageBox.alert(
+        '照片或背景未通过 AI 内容审核，请重新拍摄或更换背景后重试。',
+        '图片未通过审核',
+        { confirmButtonText: '我知道了', type: 'warning' }
+      ).catch(() => {})
     } else {
       ElMessage.error(`AI合成失败: ${msg || '请重试'}`)
     }

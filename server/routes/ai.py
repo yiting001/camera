@@ -365,10 +365,27 @@ def generate_composite():
         })
         
     except Exception as e:
-        print(f"AI合成错误: {e}")
+        error_text = str(e)
+        print(f"AI合成错误: {error_text}")
         import traceback
         traceback.print_exc()
-        return jsonify({'code': 500, 'message': f'合成失败: {str(e)}'}), 500
+
+        # 豆包输入/输出图片内容审核未通过：返回明确的业务错误，避免把原始 400 报文直接抛给客户端
+        if 'SensitiveContentDetected' in error_text:
+            import re
+            match = re.search(r'Request id:\s*([0-9a-zA-Z]+)', error_text)
+            request_id = match.group(1) if match else ''
+            print(f"AI 图片内容审核未通过，Request id: {request_id}")
+            return jsonify({
+                'code': 422,
+                'message': '照片或背景未通过 AI 内容审核，请重新拍摄（正面、清晰、无敏感内容）或更换背景后重试',
+                'data': {
+                    'error': 'IMAGE_SENSITIVE_CONTENT',
+                    'requestId': request_id
+                }
+            }), 422
+
+        return jsonify({'code': 500, 'message': f'合成失败: {error_text}'}), 500
 
 
 @ai_bp.route('/backgrounds', methods=['GET'])
