@@ -37,7 +37,7 @@
           <el-icon><MagicStick /></el-icon>
           滤镜
         </el-button>
-        <el-button :type="selectedBackground ? 'primary' : 'warning'" @click="showBackgroundDialog = true">
+        <el-button :type="selectedBackground ? 'primary' : 'warning'" @click="openBackgroundDialog">
           <el-icon><PictureFilled /></el-icon>
           {{ selectedBackground ? '更换背景' : '选择背景' }}
         </el-button>
@@ -141,7 +141,7 @@
             v-if="!compositeResult"
             class="bg-thumb"
             :title="selectedBackground ? '更换背景' : '选择背景'"
-            @click="showBackgroundDialog = true"
+            @click="openBackgroundDialog"
           >
             <img v-if="selectedBackground" :src="selectedBackground.url" alt="当前背景" />
             <div v-else class="bg-thumb-empty">
@@ -171,6 +171,13 @@
               {{ scene.name }}
             </el-button>
           </div>
+          <div v-if="selectedScene === 'baby'" class="child-count">
+            <span class="child-count-label">宝宝数量</span>
+            <el-radio-group v-model="childCount" size="small">
+              <el-radio-button :label="1">1 个</el-radio-button>
+              <el-radio-button :label="2">2 个</el-radio-button>
+            </el-radio-group>
+          </div>
           <p class="scene-hint">{{ sceneHint }}</p>
         </div>
 
@@ -182,7 +189,7 @@
               size="large"
               :type="selectedBackground ? 'success' : 'warning'"
               class="bg-quick-btn"
-              @click="showBackgroundDialog = true"
+              @click="openBackgroundDialog"
             >
               <el-icon><PictureFilled /></el-icon>
               {{ selectedBackground ? '更换背景' : '选择背景' }}
@@ -209,7 +216,7 @@
               size="large"
               :type="selectedBackground ? 'success' : 'warning'"
               class="bg-quick-btn"
-              @click="showBackgroundDialog = true"
+              @click="openBackgroundDialog"
               :disabled="generating"
             >
               <el-icon><PictureFilled /></el-icon>
@@ -241,8 +248,15 @@
     </div>
 
     <!-- 背景选择对话框 -->
-    <el-dialog v-model="showBackgroundDialog" title="选择背景" width="800px">
+    <el-dialog
+      v-model="showBackgroundDialog"
+      title="选择背景"
+      width="min(800px, 92vw)"
+      top="5vh"
+      class="background-dialog"
+    >
       <div v-loading="loadingBackgrounds">
+        <p class="bg-dialog-tip">点击图片选中，然后点击「使用此背景」；双击图片可直接应用</p>
         <el-empty v-if="presetBackgrounds.length === 0 && !loadingBackgrounds" description="暂无背景图，请联系管理员上传" />
         <div v-else class="background-grid">
           <div 
@@ -251,6 +265,7 @@
             class="background-item"
             :class="{ selected: tempSelectedBackground?.id === bg.id }"
             @click="selectBackground(bg)"
+            @dblclick="applyBackground(bg)"
           >
             <img :src="bg.url" :alt="bg.name" />
             <span class="bg-name">{{ bg.name }}</span>
@@ -259,8 +274,17 @@
       </div>
       
       <template #footer>
-        <el-button @click="showBackgroundDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmBackground">确认</el-button>
+        <div class="bg-dialog-footer">
+          <span class="bg-dialog-selected">
+            {{ tempSelectedBackground ? `已选择：${tempSelectedBackground.name}` : '请点击图片选择背景' }}
+          </span>
+          <div class="bg-dialog-actions">
+            <el-button @click="showBackgroundDialog = false">取消</el-button>
+            <el-button type="primary" :disabled="!tempSelectedBackground" @click="confirmBackground">
+              使用此背景
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
 
@@ -322,19 +346,15 @@ const promptModes = ref([])
 const selectedPromptIndex = ref(0)
 
 // 玩法模式内置提示词（后台「提示词模式」里如有同名模式则优先使用后台配置）
-const SCENE_DEFAULT_PROMPTS = {
-  baby: '根据图1中人物的面部特征，生成他们未来宝宝的写真照片。宝宝约6-12个月大，五官自然融合两人的特征，皮肤细腻，表情可爱，光线柔和，高清摄影质感，真实自然。',
-  golden: '将图1中的夫妻二人转换为金婚（结婚50周年）纪念照：两人变为70-80岁左右的老年夫妇，保留各自的面部特征与神态，头发花白，面带幸福微笑，身穿端庄的中式金婚礼服，姿态亲密自然，画面温馨、庄重，高清摄影质感。'
-}
-
 // 可选玩法（先选玩法再拍照）
 const sceneModes = [
   { id: 'normal', name: '普通拍照', icon: Camera },
-  { id: 'baby', name: '生成宝宝', icon: Avatar, aliases: ['生成宝宝', '有宝宝的照片', '宝宝', '宝宝照', '宝宝照片'] },
-  { id: 'golden', name: '金婚照', icon: Trophy, aliases: ['金婚照', '金婚'] }
+  { id: 'baby', name: '宝宝合照', icon: Avatar, aliases: ['宝宝合照', '生成宝宝', '有宝宝的照片', '宝宝', '宝宝照', '宝宝照片'] },
+  { id: 'golden', name: '金婚纪念照', icon: Trophy, aliases: ['金婚纪念照', '金婚照', '金婚'] }
 ]
 
 const selectedScene = ref('normal')
+const childCount = ref(1)
 
 const currentScene = computed(() =>
   sceneModes.find(scene => scene.id === selectedScene.value) || sceneModes[0]
@@ -342,7 +362,7 @@ const currentScene = computed(() =>
 
 // 生成按钮文案随玩法变化
 const generateBtnText = computed(() => {
-  if (selectedScene.value === 'baby') return '生成宝宝'
+  if (selectedScene.value === 'baby') return '生成全家福'
   if (selectedScene.value === 'golden') return '生成金婚照'
   return 'AI合成'
 })
@@ -350,7 +370,7 @@ const generateBtnText = computed(() => {
 // 玩法说明
 const sceneHint = computed(() => {
   if (selectedScene.value === 'baby') {
-    return '拍下两人的合照，点击「生成宝宝」，AI 会根据两人的相貌生成宝宝写真'
+    return '拍下两人的合照，选择宝宝数量，点击「生成全家福」，宝宝会和你们一起合影'
   }
   if (selectedScene.value === 'golden') {
     return '拍下两人的合照，点击「生成金婚照」，AI 会生成金婚纪念照'
@@ -363,36 +383,76 @@ function selectScene(sceneId) {
   selectedScene.value = sceneId
 }
 
+// 查找后台同义提示词模式
+function findAdminMode(scene) {
+  const aliases = scene.aliases || [scene.name]
+  return promptModes.value.find(
+    mode => aliases.includes((mode.name || '').trim()) && (mode.content || '').trim()
+  )
+}
+
+// 宝宝合照提示词（夫妻 + 1个或2个宝宝的全家福）
+function buildBabyPrompt() {
+  const countText = childCount.value === 2 ? '两个' : '一个'
+  let prompt = `以图1中的夫妻二人为基础，保持两人的面部特征、发型与身份不变。根据两人的相貌推断他们未来孩子的长相，生成${countText}宝宝（约6-12个月大，宝宝性别自然即可，五官自然融合父母特征，皮肤细腻，表情可爱）。让${countText}宝宝与夫妻二人一起拍一张温馨的全家福合影，宝宝由夫妻二人抱着或围绕在身边，全家人表情自然幸福，构图完整，真实自然，高清摄影质感。`
+  if (selectedBackground.value) {
+    prompt += ' 将全家人自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
+  } else {
+    prompt += ' 背景使用柔和的浅色室内影棚背景，光线自然。'
+  }
+  return prompt
+}
+
+// 给提示词补充背景融合要求（避免重复）
+function withBackgroundHint(prompt) {
+  if (selectedBackground.value && !/图\s*2|背景/.test(prompt)) {
+    return `${prompt} 将人物自然融入图2的背景场景中，保持光线、透视与色调协调一致。`
+  }
+  return prompt
+}
+
 // 获取当前玩法的提示词（后台同名/同义模式 > 内置默认）
 function resolveScenePrompt(scene) {
   if (!scene || scene.id === 'normal') return null
 
-  const aliases = scene.aliases || [scene.name]
-  const adminMode = promptModes.value.find(
-    mode => aliases.includes((mode.name || '').trim()) && (mode.content || '').trim()
-  )
-  const hasBackground = !!selectedBackground.value
-
-  let prompt = ''
+  const adminMode = findAdminMode(scene)
   if (adminMode) {
     const adminContent = adminMode.content.trim()
-    // 后台提示词依赖「图2」时，只有选了背景才使用，否则回退到内置提示词
     const mentionsBackground = /图\s*2|背景/.test(adminContent)
-    if (!mentionsBackground || hasBackground) {
-      prompt = adminContent
+
+    if (scene.id === 'baby') {
+      // 后台支持 {count} / {宝宝数量} 占位符，替换为用户选择的宝宝数量
+      if (/\{count\}|\{宝宝数量\}/.test(adminContent)) {
+        return adminContent.replace(/\{count\}|\{宝宝数量\}/g, String(childCount.value))
+      }
+      // 旧版后台提示词固定写死"一个男孩/一个宝宝"，无法满足1/2个宝宝选择，改用内置提示词
+      if (/一位男孩|一个男孩|一个宝宝/.test(adminContent)) {
+        return buildBabyPrompt()
+      }
+      if (!mentionsBackground || selectedBackground.value) {
+        return withBackgroundHint(`${adminContent} 本次生成${childCount.value}个宝宝，并与夫妻二人一起合影。`)
+      }
+      return buildBabyPrompt()
+    }
+
+    // 金婚纪念照
+    if (!mentionsBackground || selectedBackground.value) {
+      return withBackgroundHint(adminContent)
     }
   }
 
-  if (!prompt) {
-    prompt = (SCENE_DEFAULT_PROMPTS[scene.id] || '').trim()
+  // 内置金婚照提示词
+  if (scene.id === 'golden') {
+    let prompt = '将图1中的夫妻二人转换为结婚50周年金婚纪念照：保持两人的面部特征与身份不变，年龄自然变为70-80岁，头发花白、精神矍铄，身穿端庄的中式金婚礼服，两人亲密并肩、面带幸福微笑。'
+    if (selectedBackground.value) {
+      prompt += ' 将二人自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
+    } else {
+      prompt += ' 背景使用温馨的暖色调中式厅堂或影棚背景，高清摄影质感。'
+    }
+    return prompt
   }
 
-  // 选了背景、但提示词里还没提到背景时，补一句融合要求
-  if (prompt && hasBackground && !/图\s*2|背景/.test(prompt)) {
-    prompt += ' 将人物自然融入图2的背景场景中，保持光线、透视与色调协调一致。'
-  }
-
-  return prompt
+  return buildBabyPrompt()
 }
 
 
@@ -758,9 +818,21 @@ function retakePhoto() {
   compositeResult.value = null
 }
 
+// 打开背景选择（回显当前背景）
+function openBackgroundDialog() {
+  tempSelectedBackground.value = selectedBackground.value
+  showBackgroundDialog.value = true
+}
+
 // 选择背景
 function selectBackground(bg) {
   tempSelectedBackground.value = bg
+}
+
+// 双击直接应用背景
+function applyBackground(bg) {
+  tempSelectedBackground.value = bg
+  confirmBackground()
 }
 
 // 确认背景选择
@@ -782,7 +854,7 @@ async function generateComposite() {
   }
 
   const isSceneMode = selectedScene.value !== 'normal'
-  const doneLabel = isSceneMode ? `「${currentScene.value.name}」` : 'AI 合成'
+  const doneLabel = isSceneMode ? `「${generateBtnText.value.replace(/^生成/, '')}」` : 'AI 合成'
 
   // 普通拍照需要背景；宝宝/金婚照模式背景可选
   if (!isSceneMode && !selectedBackground.value) {
@@ -799,7 +871,7 @@ async function generateComposite() {
     console.log('人像照片上传成功:', photoUrl)
     
     compositeStatus.value = isSceneMode
-      ? `正在生成${currentScene.value.id === 'baby' ? '宝宝照片' : '金婚纪念照'}...`
+      ? `正在生成${currentScene.value.id === 'baby' ? '全家福' : '金婚纪念照'}...`
       : '正在调用 AI 合成...'
     
     // 2. 构建合成参数
@@ -1503,8 +1575,73 @@ onUnmounted(() => {
   max-width: 640px;
 }
 
+/* 宝宝数量选择 */
+.child-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.child-count-label {
+  font-size: 12px;
+  color: #8a93a8;
+}
+
+.child-count :deep(.el-radio-button__inner) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #e0e0e0;
+  padding: 7px 14px;
+}
+
+.child-count :deep(.el-radio-button.is-active .el-radio-button__inner) {
+  background: #409eff;
+  border-color: #409eff;
+  color: #fff;
+  box-shadow: -1px 0 0 0 #409eff;
+}
+
 .bg-quick-btn {
   min-width: 132px;
+}
+
+/* 背景选择弹窗 */
+.bg-dialog-tip {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #8a93a8;
+}
+
+.bg-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.bg-dialog-selected {
+  font-size: 13px;
+  color: #8a93a8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bg-dialog-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+:deep(.el-dialog.background-dialog) {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.el-dialog.background-dialog .el-dialog__body) {
+  overflow-y: auto;
 }
 
 .capture-btn {
