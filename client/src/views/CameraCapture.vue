@@ -135,10 +135,27 @@
             <el-icon class="loading-icon" :size="48"><Loading /></el-icon>
             <p>正在连接相机...</p>
           </div>
+
+          <!-- 当前背景缩略图（浮层，点击更换） -->
+          <div
+            v-if="!compositeResult"
+            class="bg-thumb"
+            :title="selectedBackground ? '更换背景' : '选择背景'"
+            @click="showBackgroundDialog = true"
+          >
+            <img v-if="selectedBackground" :src="selectedBackground.url" alt="当前背景" />
+            <div v-else class="bg-thumb-empty">
+              <el-icon :size="20"><PictureFilled /></el-icon>
+              <span>选择背景</span>
+            </div>
+            <span v-if="selectedBackground" class="bg-thumb-label">更换背景</span>
+          </div>
         </div>
-        
-        <!-- 玩法选择：先选玩法再拍照 -->
-        <div class="scene-bar">
+      </div>
+
+      <!-- 底部操作栏：玩法 + 控制按钮 -->
+      <div class="bottom-bar">
+        <div class="scene-group">
           <div class="scene-options">
             <span class="scene-label">选择玩法</span>
             <el-button
@@ -219,18 +236,6 @@
               {{ saving ? '保存中...' : '保存并扫码' }}
             </el-button>
           </template>
-        </div>
-      </div>
-
-      <!-- 背景预览区 -->
-      <div class="background-section">
-        <h3>当前背景</h3>
-        <div class="background-preview">
-          <img v-if="selectedBackground" :src="selectedBackground.url" alt="背景" />
-          <div v-else class="no-background">
-            <el-icon :size="48"><PictureFilled /></el-icon>
-            <p>未选择背景</p>
-          </div>
         </div>
       </div>
     </div>
@@ -1318,27 +1323,30 @@ onUnmounted(() => {
 
 .main-content {
   flex: 1;
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  grid-template-rows: 1fr auto;
-  gap: 20px;
-  padding: 20px;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .camera-section {
-  grid-row: span 2;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 20px;
+  justify-content: center;
+  container-type: size;
 }
 
 .camera-container {
   position: relative;
-  width: 100%;
-  max-width: 800px;
-  aspect-ratio: 16 / 9;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
   background: #000;
   border-radius: 12px;
   overflow: hidden;
@@ -1350,7 +1358,7 @@ onUnmounted(() => {
 .camera-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   position: relative;
   z-index: 1;
 }
@@ -1368,9 +1376,13 @@ onUnmounted(() => {
 }
 
 .camera-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   color: #888;
 }
@@ -1421,40 +1433,50 @@ onUnmounted(() => {
 
 .capture-controls {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
 }
 
-/* 玩法选择栏 */
-.scene-bar {
+/* 底部操作栏：玩法 + 控制按钮 */
+.bottom-bar {
   width: 100%;
-  max-width: 800px;
   background: #16213e;
   border: 1px solid #0f3460;
   border-radius: 12px;
-  padding: 14px 16px 10px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.scene-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .scene-options {
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .scene-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #8a93a8;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .scene-btn {
-  min-width: 150px;
-  height: 52px;
-  font-size: 16px;
+  min-width: 122px;
+  height: 44px;
+  font-size: 15px;
   font-weight: 600;
   border-radius: 10px;
 }
@@ -1472,67 +1494,73 @@ onUnmounted(() => {
 }
 
 .scene-hint {
-  margin: 10px 0 0;
-  text-align: center;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
   color: #8a93a8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 640px;
 }
 
 .bg-quick-btn {
-  min-width: 140px;
+  min-width: 132px;
 }
 
 .capture-btn {
-  width: 80px;
-  height: 80px;
+  width: 72px;
+  height: 72px;
   box-shadow: 0 0 20px rgba(255, 77, 77, 0.5);
 }
 
-.background-section,
-.result-section {
-  background: #16213e;
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.background-section h3,
-.result-section h3 {
-  margin: 0 0 12px;
-  font-size: 16px;
-  color: #e0e0e0;
-}
-
-.background-preview,
-.result-preview {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #0f3460;
+/* 取景框内当前背景缩略图 */
+.bg-thumb {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 150px;
   border-radius: 8px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(15, 52, 96, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  z-index: 15;
+  transition: transform 0.2s, border-color 0.2s;
 }
 
-.background-preview img,
-.result-preview img {
+.bg-thumb:hover {
+  transform: scale(1.03);
+  border-color: #409eff;
+}
+
+.bg-thumb img {
+  display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
 }
 
-.no-background {
+.bg-thumb-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px;
+  text-align: center;
+  font-size: 11px;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+}
+
+.bg-thumb-empty {
+  aspect-ratio: 16 / 9;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  color: #666;
-}
-
-.result-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
+  justify-content: center;
+  gap: 2px;
+  color: #c9d3e6;
+  font-size: 11px;
 }
 
 /* 背景选择对话框 */
