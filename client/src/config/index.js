@@ -27,6 +27,42 @@ export function getServerUrl() {
 }
 
 /**
+ * 获取默认服务器地址
+ */
+export function getDefaultServerUrl() {
+  return DEFAULT_CONFIG.apiBaseUrl
+}
+
+/**
+ * 获取可访问的资源地址
+ * - 相对路径：拼接服务器地址
+ * - TOS 绝对地址：走服务器代理（客户端网络可能无法直连 TOS）
+ * - 其他绝对地址：原样返回
+ * @param {string} url
+ * @param {{ width?: number }} options 图片缩略图宽度
+ */
+export function getAssetUrl(url, options = {}) {
+  if (!url) return ''
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url
+
+  if (!url.startsWith('http')) {
+    return `${currentConfig.apiBaseUrl}${url}`
+  }
+
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname.endsWith('.tos-cn-beijing.volces.com')) {
+      const width = options.width ? `&w=${options.width}` : ''
+      return `${getApiBaseUrl()}/photo/proxy-image?url=${encodeURIComponent(url)}${width}`
+    }
+  } catch (e) {
+    // URL 解析失败时按原地址使用
+  }
+
+  return url
+}
+
+/**
  * 获取当前配置
  */
 export function getConfig() {
@@ -48,8 +84,14 @@ export async function initConfig() {
   if (window.electronAPI && window.electronAPI.getAppConfig) {
     try {
       const savedConfig = await window.electronAPI.getAppConfig()
-      if (savedConfig && savedConfig.apiBaseUrl) {
-        currentConfig.apiBaseUrl = savedConfig.apiBaseUrl
+      const savedUrl = ((savedConfig && savedConfig.apiBaseUrl) || '').trim().replace(/\/+$/, '')
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(savedUrl)
+
+      if (/^https?:\/\/.+/i.test(savedUrl) && !isLocalhost) {
+        currentConfig.apiBaseUrl = savedUrl
+      } else if (isLocalhost) {
+        // 旧版本「重置」按钮会保存 localhost，导致打包后的客户端连不上服务器
+        console.warn('检测到本地服务器地址，已自动使用默认地址:', DEFAULT_CONFIG.apiBaseUrl)
       }
       console.log('配置加载成功:', currentConfig)
     } catch (error) {
@@ -82,6 +124,8 @@ export async function saveConfig(config) {
 export default {
   getApiBaseUrl,
   getServerUrl,
+  getDefaultServerUrl,
+  getAssetUrl,
   getConfig,
   setConfig,
   initConfig,

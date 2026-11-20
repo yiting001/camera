@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, send_file
 from models import Photo, Album, Background, Font, SystemSetting
 from extensions import db
 from routes.auth import token_required
@@ -6,8 +6,23 @@ from config import Config
 from werkzeug.utils import secure_filename
 import os
 import uuid
+import hashlib
+import mimetypes
+import requests
+from urllib.parse import urlparse
 
 photo_bp = Blueprint('photo', __name__)
+
+# 图片/字体等外部资源代理缓存目录
+PROXY_CACHE_DIR = os.path.join(Config.UPLOAD_FOLDER, 'proxy_cache')
+os.makedirs(PROXY_CACHE_DIR, exist_ok=True)
+PROXY_ALLOWED_HOST_SUFFIX = '.tos-cn-beijing.volces.com'
+FONT_MIME_TYPES = {
+    '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2'
+}
 
 
 def allowed_file(filename):
@@ -298,3 +313,54 @@ def get_text_overlay():
             'bgColor': bg_color if bg_color else 'rgba(0, 0, 0, 0.7)'
         }
     })
+
+
+# 外部资源代理（背景图/Logo/字体/结果图）
+# 客户端不一定能直接访问 TOS，统一由服务器代理并做磁盘缓存；
+# 图片可通过 w 参数使用 TOS 图片处理生成缩略图，减少流量。
+@photo_bp.route('/proxy-image', methods=['GET'])
+def proxy_image():
+    image_url = (request.args.get('url') or '').strip()
+    width = request.args.get('w', type=int)
+
+    if not image_url:
+        return jsonify({'code': 400, 'message': '缺少资源地址'}), 400
+
+    parsed = urlparse(image_url)
+    host = (parsed.hostname or '').lower()
+    if parsed.scheme not in ('http', 'https') or not host.endswith(PROXY_ALLOWED_HOST_SUFFIX):
+        return jsonify({'code': 403, 'message': '不允许的资源地址'}), 403
+
+    upstream_url = image_url
+    is_signed = 'x-tos-signature' in image_url.lower()
+    if width and not is_signed:
+        width = max(100, min(width, 1600))
+        sep = '&' if parsed.query else '?'
+        upstream_url = '%s%sx-tos-process=image/resize,w_%d' % (image_url, sep, width)
+
+    cache_key = hashlib.md5(upstream_url.encode('utf-8')).hexdigest()
+    ext = os.path.splitext(parsed.path)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.ttf', '.otf', '.woff', '.woff2', '.svg'):
+        ext = '.bin'
+    cache_path = os.path.join(PROXY_CACHE_DIR, cache_key + ext)
+
+    if not os.path.exists(cache_path):
+        try:
+            resp = requests.get(upstream_url, timeout=60, stream=True)
+            if resp.status_code != 200:
+                return jsonify({'code': 502, 'message': '资源获取失败(%s)' % resp.status_code}), 502
+
+            tmp_path = cache_path + '.tmp'
+            with open(tmp_path, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=65536):
+                    if chunk:
+                        f.write(chunk)
+            os.replace(tmp_path, cache_path)
+        except Exception as e:
+            print('资源代理失败: %s' % e)
+            return jsonify({'code': 500, 'message': '资源代理失败'}), 500
+
+    mimetype = FONT_MIME_TYPES.get(ext) or mimetypes.guess_type(cache_path)[0] or 'application/octet-stream'
+    response = send_file(cache_path, mimetype=mimetype, conditional=True, max_age=86400)
+    response.headers['Cache-Control'] = 'public, max-age=86400'
+    return response

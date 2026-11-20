@@ -48,7 +48,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getConfig, saveConfig as saveAppConfig } from '@/config'
+import { getConfig, saveConfig as saveAppConfig, getDefaultServerUrl } from '@/config'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -58,7 +58,7 @@ function goBack() {
 }
 
 // 服务器地址
-const serverUrl = ref('http://localhost:5001')
+const serverUrl = ref(getDefaultServerUrl())
 
 // 开机自启动
 const autoLaunch = ref(false)
@@ -75,7 +75,7 @@ const isElectron = computed(() => {
 // 加载服务器配置
 function loadServerConfig() {
   const config = getConfig()
-  serverUrl.value = config.apiBaseUrl || 'http://localhost:5001'
+  serverUrl.value = config.apiBaseUrl || getDefaultServerUrl()
 }
 
 // 获取自启动状态
@@ -136,12 +136,20 @@ async function handleFullscreenChange(value) {
 
 // 保存设置
 async function saveSettings() {
+  const url = (serverUrl.value || '').trim().replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(url)) {
+    ElMessage.error('请输入以 http:// 或 https:// 开头的服务器地址')
+    return
+  }
+
   const success = await saveAppConfig({
-    apiBaseUrl: serverUrl.value
+    apiBaseUrl: url
   })
   
   if (success) {
-    ElMessage.success('设置已保存')
+    ElMessage.success('设置已保存，正在重新加载...')
+    // 重新加载以使用新的服务器地址
+    setTimeout(() => window.location.reload(), 800)
   } else {
     ElMessage.error('保存设置失败')
   }
@@ -149,8 +157,8 @@ async function saveSettings() {
 
 // 重置设置
 function resetSettings() {
-  serverUrl.value = 'http://localhost:5001'
-  ElMessage.info('设置已重置')
+  serverUrl.value = getDefaultServerUrl()
+  ElMessage.info('已恢复默认服务器地址，请点击保存')
 }
 
 onMounted(() => {

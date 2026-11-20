@@ -37,10 +37,6 @@
           <el-icon><MagicStick /></el-icon>
           滤镜
         </el-button>
-        <el-button :type="selectedBackground ? 'primary' : 'warning'" @click="openBackgroundDialog">
-          <el-icon><PictureFilled /></el-icon>
-          {{ selectedBackground ? '更换背景' : '选择背景' }}
-        </el-button>
       </div>
     </div>
 
@@ -183,17 +179,8 @@
 
         <!-- 控制按钮 -->
         <div class="capture-controls">
-          <!-- 未拍照：背景选择 + 拍照按钮 -->
+          <!-- 未拍照：拍照按钮 -->
           <template v-if="!capturedImage && !compositeResult">
-            <el-button
-              size="large"
-              :type="selectedBackground ? 'success' : 'warning'"
-              class="bg-quick-btn"
-              @click="openBackgroundDialog"
-            >
-              <el-icon><PictureFilled /></el-icon>
-              {{ selectedBackground ? '更换背景' : '选择背景' }}
-            </el-button>
             <el-button 
               type="danger" 
               size="large" 
@@ -206,21 +193,11 @@
             </el-button>
           </template>
           
-          <!-- 已拍照未合成：重拍 + 换背景 + 生成 -->
+          <!-- 已拍照未合成：重拍 + 生成 -->
           <template v-else-if="capturedImage && !compositeResult">
             <el-button type="info" size="large" @click="retakePhoto" :disabled="generating">
               <el-icon><RefreshLeft /></el-icon>
               重新拍照
-            </el-button>
-            <el-button
-              size="large"
-              :type="selectedBackground ? 'success' : 'warning'"
-              class="bg-quick-btn"
-              @click="openBackgroundDialog"
-              :disabled="generating"
-            >
-              <el-icon><PictureFilled /></el-icon>
-              {{ selectedBackground ? '更换背景' : '选择背景' }}
             </el-button>
             <el-button type="primary" size="large" @click="generateComposite" :loading="generating">
               <el-icon><MagicStick /></el-icon>
@@ -257,7 +234,10 @@
     >
       <div v-loading="loadingBackgrounds">
         <p class="bg-dialog-tip">点击图片选中，然后点击「使用此背景」；双击图片可直接应用</p>
-        <el-empty v-if="presetBackgrounds.length === 0 && !loadingBackgrounds" description="暂无背景图，请联系管理员上传" />
+        <el-empty v-if="backgroundLoadError && !loadingBackgrounds" description="背景加载失败，请检查网络后重试">
+          <el-button type="primary" @click="fetchBackgrounds">重新加载</el-button>
+        </el-empty>
+        <el-empty v-else-if="presetBackgrounds.length === 0 && !loadingBackgrounds" description="暂无背景图，请联系管理员上传" />
         <div v-else class="background-grid">
           <div 
             v-for="bg in presetBackgrounds" 
@@ -323,7 +303,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { generateAIComposite, savePhoto, getBackgrounds, getFonts, getLogo, getReference, getTextOverlay, getPrompts, uploadToTos, sharePhoto } from '@/api/photo'
-import { getServerUrl } from '@/config'
+import { getServerUrl, getAssetUrl } from '@/config'
 import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
 
@@ -568,8 +548,8 @@ async function loadFont(font) {
   }
   
   try {
-    // 如果URL已经是完整URL则直接使用，否则拼接服务器地址
-    const fontUrl = font.url.startsWith('http') ? font.url : `${getServerUrl()}${font.url}`
+    // 相对路径拼服务器地址；TOS 地址走服务器代理
+    const fontUrl = getAssetUrl(font.url)
     const fontFace = new FontFace(fontFamily, `url(${fontUrl})`)
     await fontFace.load()
     document.fonts.add(fontFace)
@@ -582,19 +562,15 @@ async function loadFont(font) {
   return fontFamily
 }
 
-// 获取字体列表
+// 获取字体列表（只加载文字描述当前使用的字体，避免一次下载所有字体）
 async function fetchFonts() {
   try {
     const result = await getFonts()
     if (result.code === 200 && result.data) {
-      // 并行加载所有字体
-      const fontsWithFamily = await Promise.all(
-        result.data.map(async font => ({
-          ...font,
-          fontFamily: await loadFont(font)
-        }))
-      )
-      fontList.value = fontsWithFamily
+      const selected = result.data.find(font => font.id === textSettings.fontId)
+      fontList.value = selected
+        ? [{ ...selected, fontFamily: await loadFont(selected) }]
+        : []
     }
   } catch (error) {
     console.error('获取字体列表失败:', error)
@@ -640,21 +616,27 @@ const tempSelectedBackground = ref(null)
 // 预设背景列表（从后端获取）
 const presetBackgrounds = ref([])
 const loadingBackgrounds = ref(false)
+const backgroundLoadError = ref(false)
 
 // 获取背景列表
 async function fetchBackgrounds() {
   loadingBackgrounds.value = true
+  backgroundLoadError.value = false
   try {
     const result = await getBackgrounds()
     if (result.code === 200 && result.data) {
-      // 转换 URL 为完整路径（如果已经是完整URL则不拼接）
+      // 缩略图走服务器代理（600px），AI 合成时使用原始地址
       presetBackgrounds.value = result.data.map(bg => ({
         ...bg,
-        url: bg.url.startsWith('http') ? bg.url : `${getServerUrl()}${bg.url}`
+        rawUrl: bg.url,
+        url: getAssetUrl(bg.url, { width: 600 })
       }))
+    } else {
+      backgroundLoadError.value = true
     }
   } catch (error) {
     console.error('获取背景列表失败:', error)
+    backgroundLoadError.value = true
   } finally {
     loadingBackgrounds.value = false
   }
@@ -822,6 +804,10 @@ function retakePhoto() {
 function openBackgroundDialog() {
   tempSelectedBackground.value = selectedBackground.value
   showBackgroundDialog.value = true
+  // 之前加载失败或列表为空时，打开弹窗自动重试一次
+  if (presetBackgrounds.value.length === 0 && !loadingBackgrounds.value) {
+    fetchBackgrounds()
+  }
 }
 
 // 选择背景
@@ -889,7 +875,8 @@ async function generateComposite() {
     }
 
     if (selectedBackground.value) {
-      params.background = selectedBackground.value.url
+      // 合成使用原始地址（TOS 公网地址或服务器本地路径），缩略图代理地址不能给模型用
+      params.background = selectedBackground.value.rawUrl || selectedBackground.value.url
     }
     
     // 添加参考图参数（如果有）
@@ -911,7 +898,8 @@ async function generateComposite() {
     const result = await generateAIComposite(params)
     
     if (result.code === 200 && result.data.compositeImage) {
-      compositeResult.value = result.data.compositeImage
+      // 结果图也走服务器代理，避免客户端直连 TOS 失败、并解决 canvas 跨域
+      compositeResult.value = getAssetUrl(result.data.compositeImage)
       compositeStatus.value = ''
       // 显示剩余次数
       if (result.data.ai_remaining !== null && result.data.ai_remaining !== undefined) {
@@ -1098,9 +1086,8 @@ async function fetchLogo() {
   try {
     const result = await getLogo()
     if (result.code === 200 && result.data.url) {
-      // 如果URL已经是完整URL则直接使用，否则拼接服务器地址
-      const url = result.data.url
-      brandLogo.value = url.startsWith('http') ? url : `${getServerUrl()}${url}`
+      // 外部图片走服务器代理，避免客户端访问不了 TOS
+      brandLogo.value = getAssetUrl(result.data.url, { width: 400 })
     }
   } catch (error) {
     console.error('获取 Logo 失败:', error)
@@ -1154,7 +1141,9 @@ async function fetchPrompts() {
 
 // 重新拉取服务端数据（网络恢复后调用）
 async function refetchServerData() {
-  await Promise.all([fetchBackgrounds(), fetchFonts(), fetchLogo(), fetchReference(), fetchTextOverlay(), fetchPrompts()])
+  // 先取文字描述设置，才能确定要加载哪个字体
+  await fetchTextOverlay()
+  await Promise.all([fetchBackgrounds(), fetchFonts(), fetchLogo(), fetchReference(), fetchPrompts()])
 }
 
 onMounted(async () => {
@@ -1630,10 +1619,6 @@ onUnmounted(() => {
   box-shadow: -1px 0 0 0 #409eff;
 }
 
-.bg-quick-btn {
-  min-width: 132px;
-}
-
 /* 背景选择弹窗 */
 .bg-dialog-tip {
   margin: 0 0 12px;
@@ -1684,11 +1669,12 @@ onUnmounted(() => {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: 150px;
+  width: 160px;
   border-radius: 8px;
   overflow: hidden;
   background: rgba(15, 52, 96, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   z-index: 15;
   transition: transform 0.2s, border-color 0.2s;

@@ -50,7 +50,7 @@ import { ElMessage } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { Monitor, Connection } from '@element-plus/icons-vue'
 import { api } from '@/api/index'
-import { getServerUrl, getApiBaseUrl } from '@/config'
+import { getServerUrl, getApiBaseUrl, getAssetUrl } from '@/config'
 
 const router = useRouter()
 const route = useRoute()
@@ -145,10 +145,8 @@ async function fetchLogo() {
   try {
     const res = await api.getLogo()
     if (res.code === 200 && res.data?.url) {
-      // 完整 URL 直接使用，相对路径才拼接服务器地址
-      logoUrl.value = res.data.url.startsWith('http')
-        ? res.data.url
-        : `${getServerUrl()}${res.data.url}`
+      // 外部图片走服务器代理，避免客户端访问不了 TOS
+      logoUrl.value = getAssetUrl(res.data.url, { width: 200 })
     }
   } catch (error) {
     console.error('获取 Logo 失败:', error)
