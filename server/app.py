@@ -1,4 +1,14 @@
 # -*- coding: utf-8 -*-
+import sys
+import io
+
+# 兼容 nohup/ssh 等非 UTF-8 locale 启动场景，避免中文日志触发 UnicodeEncodeError
+try:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+except Exception:
+    pass
+
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config

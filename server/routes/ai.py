@@ -231,7 +231,6 @@ def call_doubao_composite(photo_url, background_url=None, reference_url=None, pr
         'model': model,
         'prompt': prompt,
         'image': image_urls,
-        'sequential_image_generation': 'disabled',
         'response_format': 'url',
         'size': size_value,
         'stream': False,
