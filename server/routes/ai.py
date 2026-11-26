@@ -150,7 +150,7 @@ def get_doubao_config():
         from config import Config
         api_key = Config.DOUBAO_API_KEY
     if not model:
-        model = 'doubao-seedream-4-5-251128'
+        model = 'doubao-seedream-5-5-261028'
     if not size:
         size = '16:9'  # 默认 16:9
     
@@ -384,6 +384,21 @@ def generate_composite():
                     'requestId': request_id
                 }
             }), 422
+
+        # 模型下线 / 账号未开通模型：返回明确提示，方便管理员去火山方舟控制台开通
+        if any(code in error_text for code in ('ClosedEndpoint', 'ModelNotOpen', 'InvalidEndpointOrModel')):
+            import re
+            match = re.search(r'Request id:\s*([0-9a-zA-Z]+)', error_text)
+            request_id = match.group(1) if match else ''
+            print(f"AI 模型不可用，Request id: {request_id}")
+            return jsonify({
+                'code': 503,
+                'message': 'AI 图像模型已下线或未开通，请联系管理员在火山方舟控制台开通 Seedream 5.5 模型',
+                'data': {
+                    'error': 'MODEL_UNAVAILABLE',
+                    'requestId': request_id
+                }
+            }), 503
 
         return jsonify({'code': 500, 'message': f'合成失败: {error_text}'}), 500
 

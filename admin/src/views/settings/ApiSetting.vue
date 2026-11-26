@@ -19,10 +19,12 @@
         <el-form :model="form" label-width="120px" style="max-width: 600px">
           <el-form-item label="模型">
             <el-select v-model="form.model" placeholder="选择模型" style="width: 100%">
-              <el-option label="doubao-seedream-4-5-251128 (推荐)" value="doubao-seedream-4-5-251128" />
-              <el-option label="doubao-seedream-3-0-t2i-250116" value="doubao-seedream-3-0-t2i-250116" />
+              <el-option label="doubao-seedream-5-5-261028 (推荐，需在方舟控制台开通)" value="doubao-seedream-5-5-261028" />
+              <el-option label="doubao-seedream-5-0-flash-260915 (需在方舟控制台开通)" value="doubao-seedream-5-0-flash-260915" />
+              <el-option label="doubao-seedream-4-5-251128 (已下线，不可用)" value="doubao-seedream-4-5-251128" disabled />
+              <el-option label="doubao-seedream-3-0-t2i-250116 (仅文生图，不支持照片输入)" value="doubao-seedream-3-0-t2i-250116" disabled />
             </el-select>
-            <div class="form-tip">图像生成模型</div>
+            <div class="form-tip">需先在火山方舟控制台开通对应模型；4.5 版本已下线</div>
           </el-form-item>
           
           <el-form-item label="提示词模式">
@@ -223,7 +225,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 import api from '@/api'
 
 const form = reactive({
-  model: 'doubao-seedream-4-5-251128',
+  model: 'doubao-seedream-5-5-261028',
   prompts: [
     { name: '模式1', content: '将图1的人物与图2的背景完美融合，保持人物特征不变，自然融入背景场景' }
   ],
@@ -280,7 +282,7 @@ async function fetchConfig() {
   try {
     const res = await api.getMjConfig()
     if (res.code === 200) {
-      form.model = res.data.model || 'doubao-seedream-4-5-251128'
+      form.model = res.data.model || 'doubao-seedream-5-5-261028'
       // 支持新的多提示词格式和旧的单提示词格式
       if (res.data.prompts && res.data.prompts.length > 0) {
         form.prompts = res.data.prompts

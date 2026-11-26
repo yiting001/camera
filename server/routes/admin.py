@@ -724,7 +724,7 @@ def get_doubao_config(current_user):
     """获取 Doubao API 配置"""
     import json
     api_key = SystemSetting.get('doubao_api_key') or Config.DOUBAO_API_KEY
-    model = SystemSetting.get('doubao_model') or 'doubao-seedream-4-5-251128'
+    model = SystemSetting.get('doubao_model') or 'doubao-seedream-5-5-261028'
     # 支持多提示词（JSON 格式）
     prompts_json = SystemSetting.get('doubao_prompts')
     if prompts_json:
